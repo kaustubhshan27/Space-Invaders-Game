@@ -2,6 +2,7 @@
 #include "Nokia5110.h"
 #include "random.h"
 #include <stdlib.h>
+#include <time.h>
 
 // Blue Nokia 5110
 // ---------------
@@ -203,6 +204,7 @@ static uint8_t countOf_enemy_lasers = 0;
 static uint8_t bunker_hit_count = 0;
 static uint8_t gameOverFlag = 0;
 static uint8_t killCount = 0;
+static uint8_t prev_choice;
 
 struct State {
   uint8_t x;      						// x coordinate
@@ -226,6 +228,8 @@ typedef struct Laser_State Laser;
 Laser Enemy_Laser[ENEMY_MISSILE_MAX];
 Laser User_Laser[USER_MISSILE_MAX];
 
+struct tm time_data;
+
 int main(void)
 {
 	__set_PRIMASK(1);	//disabling all interrupt
@@ -239,6 +243,7 @@ int main(void)
 	portB_init();
 	systick_interrupt_init();
 	ADC1_interrupt_init();
+	Random_Init(time_data.tm_sec);
 	timer0A_init();
 	__set_PRIMASK(0);	//enabling all interrupts
 	
@@ -474,20 +479,22 @@ void SysTick_Handler(void)
 	}
 
 //enemy laser random generation	
-	enemy_laser_generation_count = (enemy_laser_generation_count + 1) % 100;
+	enemy_laser_generation_count = (enemy_laser_generation_count + 1) % 75;
 	if((enemy_laser_generation_count == 0) && (countOf_enemy_lasers < ENEMY_MISSILE_MAX))
 	{
-		Random_Init(SysTick->VAL);
-		uint8_t enemy_coice = Random() % 3;
-		if(Enemy[enemy_coice].image != SmallExplosion0)
+		uint8_t enemy_choice = Random() % 3;
+		if(enemy_choice == prev_choice)
+			enemy_choice = (enemy_choice + 1) % 3;
+		prev_choice = enemy_choice;
+		if(Enemy[enemy_choice].image != SmallExplosion0)
 		{
 			countOf_enemy_lasers++;
 			for(uint8_t index = 0; index < ENEMY_MISSILE_MAX; index++)
 			{
 				if(Enemy_Laser[index].life == 0)
 				{
-					Enemy_Laser[index].x = Enemy[enemy_coice].x + ENEMY30W/2 - 1;
-					Enemy_Laser[index].y = Enemy[enemy_coice].y + ENEMY30H;
+					Enemy_Laser[index].x = Enemy[enemy_choice].x + ENEMY30W/2 - 1;
+					Enemy_Laser[index].y = Enemy[enemy_choice].y + ENEMY30H;
 					Enemy_Laser[index].image = Laser0;
 					Enemy_Laser[index].life = 1;
 					if(((Enemy_Laser[index].x >= Bunker.x) && (Enemy_Laser[index].x <= Bunker.x + BUNKERW)) && Bunker.life != 0)
@@ -626,6 +633,7 @@ void game_start_message(void)
 void game_end_message(void)
 {
 	Nokia5110_Clear();
+  Nokia5110_SetCursor(1, 1);
   Nokia5110_OutString("GAME OVER");
   Nokia5110_SetCursor(1, 2);
   Nokia5110_OutString("Nice try,");
@@ -653,4 +661,4 @@ void lasers_init(void)
 		Enemy_Laser[index].y = 0;
 		Enemy_Laser[index].life = 0;
 	}
-}	
+}
