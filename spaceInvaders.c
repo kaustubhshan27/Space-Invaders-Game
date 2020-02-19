@@ -23,18 +23,6 @@
 // Push Buttons
 // ------------
 // Push Button 1 (Single Laser) connected to PB3
-// Push Button 2 (Double Laser) connected to PB4
-
-// 3 bit DAC
-// ---------
-// Bit 2 					connected to PB2
-// Bit 1 					connected to PB1
-// Bit 0 					connected to PB0
-
-// LEDs
-// ----
-// RED LED				(Single Laser) connected to PD0
-// GREEN LED			(Double Laser) connected to PD1
 
 // *************************** Images ***************************
 // enemy ship that starts at the top of the screen (arms/mouth closed)
@@ -70,7 +58,7 @@ const unsigned char Bunker0[] = {
  0x00, 0x00, 0xAA, 0xAA, 0xA0, 0x00, 0x00, 0x00, 0x0A, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x0A, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
  0xAA, 0xAA, 0xA0, 0x00, 0x00, 0x00, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00, 0x00, 0x00, 0x00, 0xFF};
 
- // small shield floating in space to cover the player's ship from enemy fire (moderate generic damage)
+// small shield floating in space to cover the player's ship from enemy fire (moderate generic damage)
 // width=18 x height=5
 const unsigned char Bunker1[] = {
  0x42, 0x4D, 0xB2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x76, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00,
@@ -250,7 +238,6 @@ int main(void)
 	portF_init();
 	portB_init();
 	systick_interrupt_init();
-	Random_Init(SysTick->VAL);
 	ADC1_interrupt_init();
 	timer0A_init();
 	__set_PRIMASK(0);	//enabling all interrupts
@@ -309,7 +296,7 @@ void portF_init(void)
 void PLL_init(void)
 {
 	SYSCTL->RCC2 |= (1 << 11);		//PLL is bypassed
-	SYSCTL->RCC |= (0x15 << 6);   //Specify the crystal frequency(16MHz) in the four XTAL bits using the code “10101”
+	SYSCTL->RCC |= (0x15 << 6);   //Specify the crystal frequency(16MHz) in the four XTAL bits using the code â€œ10101â€
 	SYSCTL->RCC2 &= ~(1 << 4);		//The OSCSRC2 bits are cleared to select the main oscillator as the oscillator clock source
 	SYSCTL->RCC2 &= ~(1 << 13);		//Clear PWRDN2 (bit 13) to activate the PLL
 	SYSCTL->RCC2 |= (0x05 << 23);	//To get the desired 80 MHz from the 400 MHz PLL, we need to divide by 5
@@ -406,14 +393,9 @@ void SysTick_Handler(void)
 					
 					if(User_Laser[index].hit_status >= 0)		//to check if user laser hitting enemy or not -- CASE 1
 					{
-						if((User_Laser[index].y - LASERH) == Enemy[User_Laser[index].hit_status].y)
+						if((User_Laser[index].y - LASERH) <= Enemy[User_Laser[index].hit_status].y)
 						{
 							Enemy[User_Laser[index].hit_status].image = SmallExplosion0;
-							
-							killCount++;
-							if(killCount == 3)
-								gameOverFlag = 1;
-							Delay100ms(20);
 							User_Laser[index].image = Laser1;
 							User_Laser[index].hit_status = -1;
 							User_Laser[index].life = 0;
@@ -440,11 +422,11 @@ void SysTick_Handler(void)
 			{
 				if(Enemy_Laser[index].life > 0)
 				{
-					Enemy_Laser[index].y += 3;		//move down by 3 pixels
+					Enemy_Laser[index].y += 4;		//move down by 4 pixels
 					
-					if((index == 1) && (Enemy_Laser[index].hit_status == 1))	//to check if enemy laser is hitting bunker -- CASE 1
+					if(Enemy_Laser[index].hit_status == 1)	//to check if enemy laser is hitting bunker -- CASE 1
 					{
-						if((Enemy_Laser[index].y == Bunker.y - BUNKERH) && (Bunker.life > 0)) 
+						if((Enemy_Laser[index].y >= Bunker.y - BUNKERH) && (Bunker.life > 0)) 
 						{
 							bunker_hit_count++;
 							switch(bunker_hit_count)
@@ -492,9 +474,10 @@ void SysTick_Handler(void)
 	}
 
 //enemy laser random generation	
-	enemy_laser_generation_count = (enemy_laser_generation_count + 1) % 150;
-	if((enemy_laser_generation_count == 0) && (countOf_enemy_lasers <= ENEMY_MISSILE_MAX))
+	enemy_laser_generation_count = (enemy_laser_generation_count + 1) % 100;
+	if((enemy_laser_generation_count == 0) && (countOf_enemy_lasers < ENEMY_MISSILE_MAX))
 	{
+		Random_Init(SysTick->VAL);
 		uint8_t enemy_coice = Random() % 3;
 		if(Enemy[enemy_coice].image != SmallExplosion0)
 		{
@@ -507,7 +490,7 @@ void SysTick_Handler(void)
 					Enemy_Laser[index].y = Enemy[enemy_coice].y + ENEMY30H;
 					Enemy_Laser[index].image = Laser0;
 					Enemy_Laser[index].life = 1;
-					if(index == 1 && Bunker.life != 0)
+					if(((Enemy_Laser[index].x >= Bunker.x) && (Enemy_Laser[index].x <= Bunker.x + BUNKERW)) && Bunker.life != 0)
 					{
 						Enemy_Laser[index].hit_status = 1;
 					}
@@ -521,7 +504,7 @@ void SysTick_Handler(void)
 		}
 	}
 	
-	if(((GPIOB->DATA & 0x08) == 0x08) && (countOf_user_lasers <= 6))	//single_missile button (PB3) pressed
+	if(((GPIOB->DATA & 0x08) == 0x08) && (countOf_user_lasers < 6))	//single_missile button (PB3) pressed
 	{
 		countOf_user_lasers++;
 		for(uint8_t index = 0; index < USER_MISSILE_MAX; index++)
@@ -549,8 +532,17 @@ void SysTick_Handler(void)
 				break;
 			}
 		}
-		Delay100ms(1);//to prevent button debounce
+		Delay100ms(2);//to prevent button debounce
 	}
+	
+	killCount = 0;
+	for(uint8_t index = 0; index < 3; index++)
+	{
+		if(Enemy[index].image == SmallExplosion0)
+			killCount++;
+	}
+	if(killCount == 3)
+		gameOverFlag = 1;
 	
 	semaphore = 1;
 }
@@ -634,7 +626,6 @@ void game_start_message(void)
 void game_end_message(void)
 {
 	Nokia5110_Clear();
-  Nokia5110_SetCursor(1, 1);
   Nokia5110_OutString("GAME OVER");
   Nokia5110_SetCursor(1, 2);
   Nokia5110_OutString("Nice try,");
@@ -662,5 +653,4 @@ void lasers_init(void)
 		Enemy_Laser[index].y = 0;
 		Enemy_Laser[index].life = 0;
 	}
-}
-	
+}	
